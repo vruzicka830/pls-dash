@@ -1,0 +1,63 @@
+# Runs automatically before every commit once `pre-commit install` has been
+# run once per clone (see README setup instructions). Run it against every
+# file by hand with: pre-commit run --all-files
+repos:
+  # Generic file hygiene — pre-commit's own maintained hook repo, not
+  # something worth reimplementing ourselves. Pinned to a specific tag
+  # (not a branch) so a run today and a run in a year behave identically.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+
+  # Project-specific checks, run via `language: system` rather than
+  # pre-commit-managed environments: each command shells out to the tool
+  # already pinned in pipeline/uv.lock or web/package-lock.json, so there's
+  # one source of truth for tool versions, not a second copy pinned here
+  # that can silently drift from what CI and `uv run`/`npm run` actually use.
+  - repo: local
+    hooks:
+      # Order matters: fix lint violations before reformatting, so the
+      # fixer and the formatter aren't fighting over the same lines.
+      - id: ruff-check
+        name: ruff check (pipeline)
+        entry: bash -c 'cd pipeline && uv run ruff check --fix'
+        language: system
+        files: ^pipeline/.*\.py$
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff format (pipeline)
+        entry: bash -c 'cd pipeline && uv run ruff format'
+        language: system
+        files: ^pipeline/.*\.py$
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy (pipeline)
+        entry: bash -c 'cd pipeline && uv run mypy src tests'
+        language: system
+        files: ^pipeline/.*\.py$
+        pass_filenames: false
+
+      # `fnm exec` (no --using) reads web/.node-version itself and runs the
+      # command under exactly that Node version — deliberately not relying
+      # on the --use-on-cd shell hook, which only fires on an interactive
+      # shell's own `cd` and would silently no-op inside this subshell.
+      - id: oxlint
+        name: oxlint (web)
+        entry: bash -c 'export PATH="$HOME/.local/share/fnm:$PATH" && cd web && fnm exec -- npm run lint'
+        language: system
+        files: ^web/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: tsc
+        name: tsc --build (web typecheck)
+        entry: bash -c 'export PATH="$HOME/.local/share/fnm:$PATH" && cd web && fnm exec -- npx tsc -b'
+        language: system
+        files: ^web/.*\.(ts|tsx)$
+        pass_filenames: false
