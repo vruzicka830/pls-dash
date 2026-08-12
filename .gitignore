@@ -1,0 +1,28 @@
+# --- Python (pipeline/) ---
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+htmlcov/
+.coverage
+
+# --- Node / Vite (web/) ---
+web/node_modules/
+web/dist/
+*.local
+
+# --- Data ---
+# Raw IMLS downloads and pipeline-generated JSON are build artifacts, not
+# source: `make data` regenerates them. See NOTES.md for the rationale.
+data/raw/
+data/cache/
+web/public/data/*.json
+
+# --- Other ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
