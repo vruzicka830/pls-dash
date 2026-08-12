@@ -33,7 +33,7 @@ jobs:
       # Python" step: uv reads pipeline/.python-version itself and
       # downloads a matching interpreter if the runner doesn't already
       # have one.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.0
         with:
           enable-cache: true
 
