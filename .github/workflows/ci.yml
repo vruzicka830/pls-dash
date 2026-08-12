@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# If a new commit lands on the same branch/PR while a run is still going,
+# cancel the stale one — no point spending CI minutes finishing a check
+# against a commit that's already been superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Principle of least privilege: the GITHUB_TOKEN each job gets can, by
+# default, do things like push tags or create releases. Nothing here needs
+# any of that, so pin it down to read-only explicitly rather than relying
+# on whatever the repo's default permission setting happens to be.
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    name: pipeline (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v7
+
+      # Unlike older Python tooling, this needs no separate "install
+      # Python" step: uv reads pipeline/.python-version itself and
+      # downloads a matching interpreter if the runner doesn't already
+      # have one.
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      # --locked: fail if uv.lock is out of sync with pyproject.toml,
+      # rather than silently re-resolving and installing something that
+      # was never actually committed. CI verifying the lockfile.
+      - run: uv sync --locked
+
+      - run: uv run ruff check .
+      # --check: report formatting violations and fail, rather than the
+      # local pre-commit hook's behavior of rewriting files in place.
+      - run: uv run ruff format --check .
+      - run: uv run mypy src tests
+      - run: uv run pytest --cov
+
+  web:
+    name: web (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: web/.node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # npm ci (not npm install): installs exactly what's in
+      # package-lock.json and fails if it's out of sync with package.json,
+      # the same "verify the lockfile, don't silently patch around it"
+      # discipline as `uv sync --locked` above.
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc -b
+      - run: npm run build
